@@ -1,0 +1,10 @@
+#Append to /etc/network/interfaces
+# Replace existing WLAN0 entries
+
+allow-hotplug wlan0
+iface wlan0 inet static
+    address 192.168.19.1
+    netmask 255.255.255.0
+    network 192.168.19.0
+    broadcast 192.168.19.255
+

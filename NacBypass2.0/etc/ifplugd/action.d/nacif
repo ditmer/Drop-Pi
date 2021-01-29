@@ -1,0 +1,14 @@
+#!/bin/bash
+
+case "$2" in
+  up)
+    if [ "$1" = "eth0" ]; then
+      exec /opt/NacBypass2.0/NacBypass.sh up
+    fi
+  ;;
+  down)
+    if [ "$1" = "eth0" ]; then
+      exec /opt/NacBypass2.0/NacBypass.sh check_up
+    fi
+  ;;
+esac

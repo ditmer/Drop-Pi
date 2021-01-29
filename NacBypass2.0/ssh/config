@@ -1,0 +1,7 @@
+Host 1.2.3.4
+  Hostname 1.2.3.4
+  ProtocolKeepAlives 30
+  User restricted_ssh_user
+  IdentityFile ~/.ssh/id_rsa
+  ProxyCommand proxytunnel -q -E -p 1.2.3.4:443 -d 1.2.3.4:22 -H "User-Agent: Mozilla/4.0 (compatible; MSIE 6.0; Win32)"
+  Port 443

