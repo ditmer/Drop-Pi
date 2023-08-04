@@ -38,10 +38,14 @@ NEW: eaphammer/hostapd-wpe integration for harvesting creds. If enabled, when an
   - ifplugd
   - net-tools
   - macchanger
-  - arping
   - eaphammer or hostapd-wpe
   - a can-do attitude
 
+### Support OSes
+Kali Linux
+Ubuntu 
+
+### iptables for Kali only
 In setting this up on Kali (2019.3 ARM) the iptables-nrf and ebtables-nrf alternatives are used by default. You *must* update these to use the legacy versions.
 
 ```sh
@@ -87,12 +91,19 @@ To make it an automated process with no intervention needed, a couple things nee
 Within /etc/network/, edit the interfaces file accordingly - no other settings should be present after editing:
 
 ```sh
+
 allow-hotplug eth0
-auto eth0
-iface eth0 inet manual
-up ifconfig eth0 up
+	iface eth0 inet manual
+	up ifconfig eth0 up
+	pre-up /opt/Drop-Pi/NacBypass2.0/pre-up.sh
+	pre-down /opt/Drop-Pi/NacBypass2.0/NacBypass.sh down
+allow-hotplug eth1
+	iface eth1 inet dhcp
+	up ifconfig eth1 up
 ```
 This allows the NIC to remain active, but not seek an IP address. This would ruin everything, and you would just go home crying. Also, this sets the stage for ifplugd to monitor the status of the NIC. Two separate config files are needed to ensure ifplugd with monitor and act appropriately on the correct NIC.
+
+
 
 ##### 2.) ifplugd setup
 Ifplugd is used to monitor the state of the onboard NIC, and executing specific actions when either the NIC is connected or disconnected.
@@ -358,6 +369,25 @@ Finally, destroying rules is as simple as:
 
 ./create_fw_rules.py -t custom -cip 172.26.1.122 -bint br0 -p 80 443 2547 -a down
 ```
+
+##### 6) Routing your beacon over WLAN0
+
+If you are running Ubuntu or any Linux os that uses Network Manager for Wifi you have to ensure the service is disabled before the system comes up or your WLAN0 will have the default routes and it will crush your br0.
+
+In order to accomplish this you need to update your /etc/network/interfaces to have a pre-up and pre-down command script to disable the service.  I will look something like this.
+
+pre-up.sh
+
+```sh
+#!/bin/bash
+
+ifconfig wlan0 down
+systemctl disable NetworkManager
+systemctl stop NetworkManager
+
+```
+
+
 
 ##### 6) That's it, I think. Probably forgot something.
 
