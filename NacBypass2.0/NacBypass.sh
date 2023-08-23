@@ -84,7 +84,7 @@ EAPOLMagic() {
          ErrNotifi
       fi
       if [ $RUNAPD -eq 1 ]; then
-         tcpdump -nne -c 1 -r $EAPLOG -i eth0 ether proto 0x888e | grep -q "EAPOL" && StealThyCreds || echo "We see no EAPol traffic, moving on"
+         tcpdump -nne -c 1 -r $EAPLOG -i $COMPINT ether proto 0x888e | grep -q "EAPOL" && StealThyCreds || echo "We see no EAPol traffic, moving on"
       fi
       return 0
     else
