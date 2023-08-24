@@ -97,9 +97,6 @@ allow-hotplug eth0
 	up ifconfig eth0 up
 	pre-up /opt/Drop-Pi/NacBypass2.0/pre-up.sh
 	pre-down /opt/Drop-Pi/NacBypass2.0/NacBypass.sh down
-allow-hotplug eth1
-	iface eth1 inet dhcp
-	up ifconfig eth1 up
 ```
 This allows the NIC to remain active, but not seek an IP address. This would ruin everything, and you would just go home crying. Also, this sets the stage for ifplugd to monitor the status of the NIC. Two separate config files are needed to ensure ifplugd with monitor and act appropriately on the correct NIC.
 

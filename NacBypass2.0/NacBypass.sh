@@ -174,6 +174,13 @@ DHCPSecretSquirrel() {
            ifconfig $COMPINT 0.0.0.0 up promisc &&  mii-tool -r $COMPINT && timeout 120s tcpdump -i $COMPINT -c1 -w $ARPLOG src host $GWIP and arp and arp[6:2] == 2
            GWMAC=`tcpdump -r $ARPLOG -vvv -nne -s 0 -c 1 arp and arp[6:2] == 2 | grep "0x0806" | grep "at" | cut -d " " -f 2 | awk '{print $NF}' | grep -m1 -Eo '([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}'`
            if [ -z ${GWMAC} ] ; then
+            echo "Couldn't get Gateway mac via packet capture, falling back to arping the gateway. Thanks for making me add this extra step Doug, jerk"
+            echo "Couldn't get Gateway mac via packet capture, falling back to arping the gateway. Thanks for making me add this extra step Doug, jerk" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
+            echo "Arping the gateway, this may take a second..."
+            echo "Arping the gateway, this may take a second..." >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
+            GWMAC=`arping -r -S $COMIP -i $BRINT $GWIP | grep -m1 -Eo '([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}'`
+           fi
+           if [ -z ${GWMAC} ] ; then
             ERR="Well this is embarrassing, couldn't get Gateway mac"
             ErrNotifi
            fi
